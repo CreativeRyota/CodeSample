@@ -1,0 +1,211 @@
+%% Sample code for CAPM on Matlab
+
+%% Clear workspace
+
+clear all
+clear
+%% Loading and transforming data 
+% The data is contained in the MATLAB datasets stock1.mat, stock2.mat,
+% stock3.mat, market.mat
+
+load stock1.mat
+load stock2.mat
+load stock3.mat
+load market.mat
+
+%% (1) Ploting and CAPM models
+
+    subplot(2,2,1)
+    plot(stock1,'k')
+    line(xlim,[0,0], 'Color', 'green')
+    xlim([0 734])
+    ylim([-7 7])
+    grid 
+    title('Log-returns of 1st asset')
+    
+    subplot(2,2,2)
+    plot(stock2,'k')
+    line(xlim,[0,0], 'Color', 'green')
+    xlim([0 734])
+    ylim([-7 7])
+    grid 
+    title('Log-returns of 2nd asset')
+
+    subplot(2,2,3)
+    plot(stock3,'k')
+    line(xlim,[0,0], 'Color', 'green')
+    xlim([0 734])
+    ylim([-7 7])
+    grid 
+    title('Log-returns of 3rd asset')
+    
+    subplot(2,2,4)
+    plot(market,'k')
+    line(xlim,[0,0], 'Color', 'green')
+    xlim([0 734])
+    ylim([-7 7])
+    grid 
+    title('Log-returns of the market')
+
+%% Estimating beta parameters for all three assets
+
+%stock_i - r^f = beta_i*(market - r^f) + eps_i
+%r^f = 0.01
+
+s1=stock1-0.01; %stock_1 - r^f
+s2=stock2-0.01; %stock_2 - r^f
+s3=stock3-0.01; %stock_3 - r^f
+m=market-0.01; %market - r^f
+
+hb_s1 = regress(s1,m);
+hb_s2 = regress(s2,m);
+hb_s3 = regress(s3,m);
+
+hb_s1
+hb_s2
+hb_s3
+    
+%% (3) CAPM model using indirect inference
+
+%Obtaining moments and generating errors
+T=length(m);
+M=20;
+H=M*T;
+  
+%% 1st asset
+yr_s1=s1-hb_s1*m;   %residuals of the regression
+m_s1=yr_s1.*m; %obtaining the series errors*market
+ 
+%autocorrelation function for 15 lags
+acf_ms1=autocorr(m_s1,15);
+%multiply by variance to get autocovariance
+acvf_ms1=acf_ms1*var(m_s1);
+%define the auxiliary statistic from the sample
+sample_m_s1 = [var(yr_s1),hb_s1,acvf_ms1.'];
+    
+%iid normal random draws with mean 0 and variance 1
+e_s1 = randn(H,2); 
+
+%% 2nd asset
+yr_s2=s2-hb_s2*m;   
+m_s2=yr_s2.*m;
+    
+acf_ms2=autocorr(m_s2,15);
+acvf_ms2=acf_ms2*var(m_s2);
+sample_m_s2 = [var(yr_s2),hb_s2,acvf_ms2.'];
+    
+e_s2 = randn(H,2); 
+
+%% 3rd asset
+yr_s3=s3-hb_s3*m;   
+m_s3=yr_s3.*m;
+    
+acf_ms3=autocorr(m_s3,15);
+acvf_ms3=acf_ms3*var(m_s3);
+sample_m_s3 = [var(yr_s3),hb_s3,acvf_ms3.'];
+    
+e_s3 = randn(H,2); 
+
+%% Initialization
+
+options = optimoptions(@fminunc,'Display','iter','TolFun',1e-10,...
+    'TolX',1e-10,'MaxFunEvals',10000 ,'Algorithm','quasi-newton');
+
+a0_ini=0;
+a1_ini=0.95;
+s_eta_ini=0.3;
+s_eps_ini=0.5;
+      
+theta_ini = [a0_ini,a1_ini,s_eta_ini,s_eps_ini];
+
+%% Parameter estimate for all of three asset minimizing MSE
+
+[theta_hat_s1]=fminunc(@(theta) mean(( sim_m_REG(e_s1,m,theta)-sample_m_s1).^2),theta_ini,options);
+[theta_hat_s2]=fminunc(@(theta) mean(( sim_m_REG(e_s2,m,theta)-sample_m_s2).^2),theta_ini,options);
+[theta_hat_s3]=fminunc(@(theta) mean(( sim_m_REG(e_s3,m,theta)-sample_m_s3).^2),theta_ini,options);
+
+theta_hat_s1
+theta_hat_s2
+theta_hat_s3
+ 
+%% Filterd paths for the 1st asset beta 
+
+	a0_hat_s1=theta_hat_s1(1);
+	a1_hat_s1=theta_hat_s1(2);
+	s_eta_hat_s1=theta_hat_s1(3);
+	s_eps_hat_s1=theta_hat_s1(4);
+        
+	b_hat_s1=zeros(T,1);
+    b_hat_s1(1)=a0_hat_s1/(1-a1_hat_s1); 
+    %setting initial value equal to the unconditional mean
+
+    % closed form expression for the filtered beta
+for t=2:T    
+    b_hat_s1(t)=(s1(t)*m(t)*s_eta_hat_s1+(a0_hat_s1+a1_hat_s1*b_hat_s1(t-1))*s_eps_hat_s1)/(m(t)^2*s_eta_hat_s1+s_eps_hat_s1);    
+end
+
+%% Filterd paths for the 2nd asset beta 
+
+	a0_hat_s2=theta_hat_s2(1);
+	a1_hat_s2=theta_hat_s2(2);
+	s_eta_hat_s2=theta_hat_s2(3);
+	s_eps_hat_s2=theta_hat_s2(4);
+        
+	b_hat_s2=zeros(T,1);
+    b_hat_s2(1)=a0_hat_s2/(1-a1_hat_s2);     
+
+for t=2:T    
+    b_hat_s2(t)=(s2(t)*m(t)*s_eta_hat_s2+(a0_hat_s2+a1_hat_s2*b_hat_s2(t-1))*s_eps_hat_s2)/(m(t)^2*s_eta_hat_s2+s_eps_hat_s2);    
+end
+
+%% Filterd paths for the 3rd asset beta 
+
+	a0_hat_s3=theta_hat_s3(1);
+	a1_hat_s3=theta_hat_s3(2);
+	s_eta_hat_s3=theta_hat_s3(3);
+	s_eps_hat_s3=theta_hat_s3(4);
+        
+	b_hat_s3=zeros(T,1);
+    b_hat_s3(1)=a0_hat_s3/(1-a1_hat_s3);     
+
+for t=2:T    
+    b_hat_s3(t)=(s3(t)*m(t)*s_eta_hat_s3+(a0_hat_s3+a1_hat_s3*b_hat_s3(t-1))*s_eps_hat_s3)/(m(t)^2*s_eta_hat_s3+s_eps_hat_s3);    
+end
+
+%%
+subplot(1,3,1)
+plot(b_hat_s1, 'r')
+grid minor
+xlim([-inf inf])
+ylim([-inf inf])
+title('Filtered \beta_t for 1st asset')
+
+subplot(1,3,2)
+plot(b_hat_s2, 'r')
+grid minor
+xlim([-inf inf])
+ylim([-inf inf])
+title('Filtered \beta_t for 2nd asset')
+
+subplot(1,3,3)
+plot(b_hat_s3, 'r')
+grid minor
+xlim([-inf inf])
+ylim([-inf inf])
+title('Filtered \beta_t for 3rd asset')
+
+%% (4) market exposition of each asset at time T
+
+b_hat_s1(end)
+b_hat_s2(end) %beta_2 is now the highest, contradicting the previous beta estimates
+b_hat_s3(end)
+
+%% (6) CAPM model with an exponential link function for beta
+
+[theta_hat2_s1]=fminunc(@(theta) mean(( sim_m_REG2(e_s1,m,theta)-sample_m_s1).^2),theta_ini,options);
+[theta_hat2_s2]=fminunc(@(theta) mean(( sim_m_REG2(e_s2,m,theta)-sample_m_s2).^2),theta_ini,options);
+[theta_hat2_s3]=fminunc(@(theta) mean(( sim_m_REG2(e_s3,m,theta)-sample_m_s3).^2),theta_ini,options);
+
+theta_hat2_s1
+theta_hat2_s2
+theta_hat2_s3

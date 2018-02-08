@@ -1,0 +1,101 @@
+function [phone_number] = PhoneNr(signal, sampling_rate, option)
+%  Ryota Akimoto 
+%  10/5/2017
+%
+% The function is for distilling a phone number from sound signals. 
+% i.e. this program will identify the numbers that was pushed, based on its sinals.
+% The inputs should include the signal, sampling rate and optionally 'plot' or 'sound'.
+
+% Code begins here
+
+% checking for the option
+if exist('option')
+    if strcmp(option, 'plot') % checking the option is identical to 'plot'
+        plot(signal);
+        xlabel('time')
+        ylabel('frequency')
+    end 
+    if strcmp(option,'sound') % checking the option is identical to 'sound'
+        sound(signal, sampling_rate);
+    end
+end
+
+% Define the terms
+phone_number = [];
+beginning = [];
+ending = [];
+sounding = 0;
+counter =0;
+
+% Ignore the weak noise (signals are much stronger than noise)
+peak = find( abs(signal) > 0.5 ); % Cut off the noise smaller than 0.5 in absolute value
+
+
+for i = 1:length(peak)-1
+    % If the signal is continuing, the gap between peaks must indicate it
+    jump_sign = peak(i+1) - peak(i) >= 500; % Large gap -> signal had done or will begin
+    cont_sign = peak(i+1) - peak(i) < 500;  % Enough small to regard it as continuous
+    
+    if sounding == 0 % If no signal
+        if cont_sign % And if the gap is small
+            beginning = [beginning; peak(i)]; % Note the point in beginning 
+            sounding = 1; % Turn on the sign showing the signal sounding
+            counter = counter+1; % For counting the number of peaks
+        end
+    end
+    
+    if sounding == 1 % If the signal sounds
+        if jump_sign % The signal will stop
+            ending = [ending; peak(i)]; % Note the point in ending
+            sounding = 0; % Turn off the sign for signal
+        end
+        if i == length(peak)-1 % In the end of the signal data 
+            ending = [ending; peak(i)]; % Note the point in ending
+        end
+    end
+end
+
+for i = 1:numel(beginning) % For all elements of start_values
+    if ending(i) - beginning(i) > 500 % If the sound explicitly lasts(enough long), comparing each element
+        wave = fft(signal(beginning(i): ending(i)), sampling_rate); %transform with fft
+        phone_number = number_finder(wave, phone_number);
+    end
+end
+number_of_peaks = counter % It clearly means how many numbers are typed
+end
+
+function[phone_number] = number_finder(wave, phone_number)
+% This function is to obtain the number by analyzing the Fourier wave
+
+% Define the terms
+highest_row = 1050;
+lowest_column = highest_row+1;
+
+% Seprate rows amd columns
+rows = wave(1:highest_row);
+columns = wave(lowest_column: 2000);
+
+% Estimate the frequency by identifying the maximum
+estimated_row = find(rows == max(rows));
+estimated_column = find(columns == max(columns)) + lowest_column;
+
+% Converge them into numbers
+% Make a phone table
+number_table = ['1', '2', '3'; '4', '5', '6'; '7', '8', '9'; '*', '0', '#'];
+
+% Assign the frequencies
+table_rows = [697, 770, 853, 941];
+table_columns = [1209, 1336, 1477];
+
+% Compute the error between data and setting
+error_row = table_rows - estimated_row;
+error_column = table_columns - estimated_column;
+
+% Converge them into the numbers
+row = find(abs(error_row) == min(abs(error_row)));
+column = find(abs(error_column) == min(abs(error_column)));
+digit = number_table(row, column);
+
+% Accumulate the numbers into a series
+phone_number = strcat(phone_number, digit);
+end

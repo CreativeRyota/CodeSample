@@ -1,16 +1,6 @@
 # Sample Code for Time Series Modeling
-
-# Course:   Econometrics III
-#           Assignment 2
-
 # Date:     23/02/2017
- 
-
-# Authors:
-#           Ryota Akimoto
-#           Nishani ******
-#           Foruhar ****** 
-
+# Authors: Ryota Akimoto
 
 # clear environment
 rm(list = ls())
@@ -24,7 +14,6 @@ install.packages("urca")
 install.packages ("tseries")
 install.packages ("tsDyn")
 
-# load data
 library(readr)
 library(ggplot2)
 library(vars)
@@ -34,9 +23,9 @@ library(urca)
 library(tseries)
 library(tsDyn)
 
-
 # urca package https://cran.r-project.org/web/packages/urca/urca.pdf
 
+# load data
 US_tbills <- read.csv("U:/Econometrie III/Assignment 2/US_tbills.csv", header=TRUE)
 
 

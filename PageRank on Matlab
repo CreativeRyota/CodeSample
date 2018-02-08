@@ -1,0 +1,81 @@
+function [ page_rank ] = PageRanking(SP, URL)
+% Ryota Akimoto
+% 17/5/2017
+% 
+% The function PageRanking has two parameters; SP is n x n matrix, which
+% contains connections between websites. URL is an optional parameter,
+% which contains a file out of n websites. It is important to check if
+% the input is valid, otherwise the program will not work. As the result of 
+% its calculation, the top 30 most important websites will be shown with their points.
+% The ranking is calculated by the power method. The ranking will be sorted
+% and displayed as output. Also there will be a plot of the top 30 most
+% important websites and their pagerank.
+
+% Definitions of terms
+p = 0.85;
+jump_random = 1-p;
+n = length(SP);
+
+c = sum(SP); % compress the matrix into a row line
+linked = find(c>0); % there is link(s) between it and others
+non_linked = find(c==0); % no link
+
+% Create the row vector K 
+K = zeros(1, n);
+K(linked) = jump_random / n;
+K(non_linked) = 1 / n;
+
+% Preparation for the power calculation
+diff = 100;
+tol = 0.0001;
+Sparse = sparse(linked, linked, 1./c(linked), n, n);
+Lambda = SP*(p*Sparse);
+
+% Create a row vector that contains the equal weight for 1/n
+x0(1:n) = (1/n);
+x0 = x0';
+
+% Using the power method to extract the eigenvectors. x0 is the initial
+% vector, and this vector will be transformed to an eigenvector.
+while diff > tol
+    x1 = ((K * x0) + (Lambda*x0));
+    absolute_diff = abs(x1 - x0);
+    diff = sum(absolute_diff);
+    x0 = x1;
+end
+eigenvector = x0;
+
+% Sort the result
+[PageRank_pts, Web_number] = sort(eigenvector(:), 'descend');
+
+% Obtain the plot
+bar(PageRank_pts);
+TopRanks = PageRank_pts(1:30);
+title('Page Rank')
+xlabel('Websites')
+ylabel('PageRank Points')
+
+% Preparation for the table
+Ranking=[1:30]';
+   
+% Gives the name of the websites
+if exist('URL')
+    TopSites = URL(Web_number(1:30));
+    
+    % Check top URLs and organize them in the same direction
+    Size=size(TopSites);
+    if Size(1)== 1
+       TopSites = TopSites';
+    end
+    
+    if size(URL, 1) == 1
+        page_rank = table(Ranking, TopSites, TopRanks, 'VariableNames',{'Rank' 'TopSites' 'Points'});
+    else 
+       page_rank = table(Ranking, TopSites, TopRanks, 'VariableNames',{'Rank' 'TopSites' 'Points'});
+    end
+    
+else 
+    page_rank = table(Ranking, TopRanks, 'VariableNames', {'Rank' 'Points'});
+end
+
+end

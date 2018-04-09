@@ -5,7 +5,6 @@ Created on Mon Apr  9 23:18:08 2018
 
 @author: Ryota
 """
-
 import numpy as np
 import pandas as pd
 from pandas import Series, DataFrame
